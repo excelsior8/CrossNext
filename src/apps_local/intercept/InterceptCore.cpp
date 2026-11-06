@@ -27,6 +27,19 @@ bool choose(State& s, unsigned index) {
   if (s.choices < UINT32_MAX) ++s.choices;
   return true;
 }
+bool allowedDisk(const State& s, const DiskNode& node, uint16_t totalNodes, unsigned choice) {
+  if (s.node >= totalNodes || choice >= node.count || choice >= 3) return false;
+  const auto& c = node.choices[choice];
+  return (s.flags & c.require) == c.require && !(s.flags & c.forbid) && c.next < totalNodes;
+}
+bool chooseDisk(State& s, const DiskNode& node, uint16_t totalNodes, unsigned index) {
+  if (!allowedDisk(s, node, totalNodes, index)) return false;
+  const auto& c = node.choices[index];
+  s.flags = (s.flags | c.set) & ~c.clear;
+  s.node = c.next;
+  if (s.choices < UINT32_MAX) ++s.choices;
+  return true;
+}
 void encode(const State& s, uint8_t* out) {
   std::memset(out, 0, 32);
   std::memcpy(out, "INT1", 4);
@@ -36,8 +49,8 @@ void encode(const State& s, uint8_t* out) {
   put(out + 12, s.choices, 4);
   put(out + 28, readingstats::checksum(out, 28), 4);
 }
-bool decode(const uint8_t* b, State& s) {
-  if (std::memcmp(b, "INT1", 4) || get(b + 28, 4) != readingstats::checksum(b, 28) || get(b + 8, 2) >= nodeCount ||
+bool decode(const uint8_t* b, State& s, uint16_t maxNodes) {
+  if (std::memcmp(b, "INT1", 4) || get(b + 28, 4) != readingstats::checksum(b, 28) || get(b + 8, 2) >= maxNodes ||
       (get(b + 10, 2) & ~63u))
     return false;
   s = {get(b + 4, 4), uint16_t(get(b + 8, 2)), uint16_t(get(b + 10, 2)), get(b + 12, 4)};

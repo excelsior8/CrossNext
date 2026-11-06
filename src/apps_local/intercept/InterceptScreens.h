@@ -5,13 +5,16 @@
 #include "InterceptCore.h"
 namespace interceptui {
 enum class View : uint8_t { Menu, Story, Restart, About };
-enum : freeink::ui::ActionId { Play = 1, New, ConfirmNew, Cancel, About, Choice, Page, Back };
+enum : freeink::ui::ActionId { Play = 1, New, ConfirmNew, Cancel, About, Choice, Page, Back, StoryStep };
 struct Model {
   const intercept::State* state = nullptr;
   View view = View::Menu;
   bool failed = false;
   int selected = 0, page = 0;
   sdart::Pack* assets = nullptr;
+  const intercept::StoryMeta* meta = nullptr;
+  const intercept::DiskNode* diskNode = nullptr;
+  int storyIndex = 0, storyCount = 1;
 };
 struct Work {
   int pages = 1;

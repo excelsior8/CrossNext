@@ -1,9 +1,12 @@
 #include "InterceptActivity.h"
 
+#include <HalStorage.h>
 #include <I18n.h>
 #include <Logging.h>
 #include <Memory.h>
 #include <fontIds.h>
+
+#include <cstdio>
 
 #include "../Shelf.h"
 #include "../ui/PixelMenuTheme.h"
@@ -15,10 +18,29 @@ std::unique_ptr<Activity> InterceptActivity::create(GfxRenderer& r, MappedInputM
   if (!app) LOG_ERR("INTERCEPT", "OOM: %u bytes", unsigned(sizeof(InterceptActivity)));
   return app;
 }
+void InterceptActivity::openStoryAssets() {
+  if (const auto* m = currentMeta()) {
+    char customArt[64];
+    std::snprintf(customArt, sizeof(customArt), "/apps/intercept/%s.bin", m->slug);
+    if (Storage.exists(customArt) && assets.open(customArt, interceptart::COUNT)) return;
+  }
+  assets.open(interceptart::PATH, interceptart::COUNT);
+}
+void InterceptActivity::syncActiveStory() {
+  openStoryAssets();
+  if (assets.ready()) {
+    failed = !intercept::load(state, writable, currentSlug(), currentMaxNodes());
+    if (const auto* m = currentMeta()) {
+      if (!intercept::loadDiskNode(*m, state.node, currentDiskNode)) failed = true;
+    }
+  }
+}
 void InterceptActivity::onEnter() {
   Activity::onEnter();
   toybox::ensureFonts(renderer);
-  if (assets.open(interceptart::PATH, interceptart::COUNT)) failed = !intercept::load(state, writable);
+  extraCount = intercept::loadCatalog(extraMetas, intercept::MAX_EXTRA_STORIES);
+  storyIndex = 0;
+  syncActiveStory();
   requestUpdate();
 }
 void InterceptActivity::onExit() {
@@ -56,7 +78,24 @@ void InterceptActivity::action(fui::ActionId action, int value) {
     case About:
       view = View::About;
       break;
+    case StoryStep: {
+      const int total = int(1 + extraCount);
+      if (total <= 1) return;
+      const int next = std::clamp(storyIndex + value, 0, total - 1);
+      if (next == storyIndex) return;
+      storyIndex = next;
+      syncActiveStory();
+      selected = page = 0;
+      interactions.setFocusedIndex(-1);
+      ready = false;
+      requestUpdate();
+      return;
+    }
     case Page: {
+      if (view == View::Menu) {
+        this->action(StoryStep, value);
+        return;
+      }
       const int next = std::clamp(page + value, 0, std::max(0, work.pages - 1));
       if (next == page) return;
       page = next;
@@ -67,8 +106,9 @@ void InterceptActivity::action(fui::ActionId action, int value) {
     case ConfirmNew: {
       intercept::State draft;
       draft.sequence = state.sequence;
-      if (intercept::save(draft, writable)) {
+      if (intercept::save(draft, writable, currentSlug(), currentMaxNodes())) {
         state = draft;
+        if (const auto* m = currentMeta()) intercept::loadDiskNode(*m, state.node, currentDiskNode);
         view = View::Story;
         failed = false;
       } else
@@ -77,9 +117,13 @@ void InterceptActivity::action(fui::ActionId action, int value) {
     }
     case Choice: {
       auto draft = state;
-      if (!intercept::choose(draft, value)) return;
-      if (intercept::save(draft, writable)) {
+      const auto* m = currentMeta();
+      const bool ok = m ? intercept::chooseDisk(draft, currentDiskNode, m->nodeCount, value)
+                        : intercept::choose(draft, value);
+      if (!ok) return;
+      if (intercept::save(draft, writable, currentSlug(), currentMaxNodes())) {
         state = draft;
+        if (m) intercept::loadDiskNode(*m, state.node, currentDiskNode);
         failed = false;
       } else
         failed = true;
@@ -100,7 +144,7 @@ void InterceptActivity::loop() {
     return;
   }
   if (assets.ready() && ready && interactions.routable() &&
-      (view == interceptui::View::Story || view == interceptui::View::About)) {
+      (view == interceptui::View::Story || view == interceptui::View::About || view == interceptui::View::Menu)) {
     if (const int direction = sidebuttons::horizontalStep(mappedInput)) {
       action(interceptui::Page, direction);
       return;
@@ -150,11 +194,14 @@ void InterceptActivity::render(RenderLock&&) {
   toybox::Frame frame(target, target.deviceContext(), in, interactions, nullptr, toybox::headerStatus(renderer));
   toybox::Screen screen(frame);
   const bool resourcesReady = assets.ready();
-  interceptui::build(screen, {&state, view, failed, selected, page, &assets}, work);
+  const auto* m = currentMeta();
+  const interceptui::Model model{&state, view, failed, selected, page, &assets, m,
+                                 m ? &currentDiskNode : nullptr, storyIndex, int(1 + extraCount)};
+  interceptui::build(screen, model, work);
   if (resourcesReady && !assets.ready()) {
     renderer.clearScreen();
     interactions.clear();
-    interceptui::build(screen, {&state, view, failed, selected, page, &assets}, work);
+    interceptui::build(screen, model, work);
   }
   ready = true;
   toybox::reportOverflow(interactions, "Intercept", &renderer);

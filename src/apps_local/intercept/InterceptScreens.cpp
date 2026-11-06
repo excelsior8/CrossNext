@@ -32,7 +32,7 @@ void menu(toybox::Screen& s, fui::Rect r, const char* label, fui::ActionId actio
 void build(toybox::Screen& s, const Model& m, Work& w) {
   pixelui::begin(s);
   pixelui::Header h;
-  h.title = tr(STR_INTERCEPT_NAME);
+  h.title = (m.meta && m.meta->title[0]) ? m.meta->title : tr(STR_INTERCEPT_NAME);
   h.back = true;
   pixelui::header(s, h);
   backui::publish(true, pixelui::geometry(s.device()).back);
@@ -46,9 +46,9 @@ void build(toybox::Screen& s, const Model& m, Work& w) {
     b.y += 44;
     b.height -= 44;
   }
-  if (!m.state || m.state->node >= intercept::nodeCount) return;
+  const uint16_t maxNodes = m.meta ? m.meta->nodeCount : intercept::nodeCount;
+  if (!m.state || m.state->node >= maxNodes) return;
   const auto& state = *m.state;
-  const auto& node = intercept::nodes[state.node];
   const bool wide = b.width > b.height;
   if (m.view == View::About) {
     w.pages = 5;
@@ -118,13 +118,20 @@ void build(toybox::Screen& s, const Model& m, Work& w) {
   }
   if (m.view == View::Menu) {
     const auto left = wide ? fui::makeRect(b.x, b.y, b.width / 2 - 10, b.height) : b;
-    const int artH = wide ? left.height - 100 : std::min(276, int(b.height) * 43 / 100);
-    scene(s, m, fui::makeRect(left.x, left.y, left.width, artH), 0);
-    dashboard::text(s, fui::makeRect(left.x, left.y + artH + 12, left.width, 34), tr(STR_REDESIGN_BLETCHLEY), 1);
-    dashboard::text(s, fui::makeRect(left.x, left.y + artH + 49, left.width, 30), tr(STR_REDESIGN_INTERACTIVE_MYSTERY),
-                    0);
+    const int baseArtH = wide ? left.height - 100 : std::min(276, int(b.height) * 43 / 100);
+    const int pagerReserve = m.storyCount > 1 ? 48 : 0;
+    const int artH = baseArtH - pagerReserve;
+    scene(s, m, fui::makeRect(left.x, left.y, left.width, artH), m.meta ? int(m.meta->coverScene) : 0);
+    dashboard::text(s, fui::makeRect(left.x, left.y + artH + 6, left.width, 34),
+                    (m.meta && m.meta->title[0]) ? m.meta->title : tr(STR_REDESIGN_BLETCHLEY), 1);
+    dashboard::text(s, fui::makeRect(left.x, left.y + artH + 40, left.width, 30),
+                    (m.meta && m.meta->subtitle[0]) ? m.meta->subtitle : tr(STR_REDESIGN_INTERACTIVE_MYSTERY), 0);
+    if (m.storyCount > 1) {
+      pageui::build(s, fui::makeRect(left.x, left.y + artH + 74, left.width, 40), m.storyIndex + 1, m.storyCount,
+                    StoryStep, -1, StoryStep, 1);
+    }
     const auto right = wide ? fui::makeRect(left.right() + 18, b.y, b.right() - left.right() - 18, b.height)
-                            : fui::makeRect(b.x, left.y + artH + 98, b.width, b.bottom() - left.y - artH - 98);
+                            : fui::makeRect(b.x, left.y + baseArtH + 98, b.width, b.bottom() - left.y - baseArtH - 98);
     const int row = std::min(66, (int(right.height) - 72) / 3) - 4;
     const int groupTop = wide ? gamepanel::centeredBlock(right, 3 * row + 20 + 16 + 62).y : right.y;
     const char* labels[] = {state.choices ? tr(STR_INTERCEPT_CONTINUE) : tr(STR_WORDLE_PLAY), tr(STR_INTERCEPT_NEW),
@@ -139,28 +146,39 @@ void build(toybox::Screen& s, const Model& m, Work& w) {
         menu(s, box, labels[n], ids[n], n == m.selected, marks[n]);
     }
     guided(s, fui::makeRect(right.x + 8, wide ? groupTop + 3 * row + 36 : right.bottom() - 62, right.width - 16, 62),
-           tr(STR_REDESIGN_INTERCEPT_TAGLINE), 3, fui::TextAlign::Center, 4);
+           (m.meta && m.meta->tagline[0]) ? m.meta->tagline : tr(STR_REDESIGN_INTERCEPT_TAGLINE), 3,
+           fui::TextAlign::Center, 4);
     return;
   }
+  const bool useDisk = m.meta != nullptr && m.diskNode != nullptr;
+  const auto& builtinNode = intercept::nodes[useDisk ? 0 : state.node];
+  const char* nodeTitle = useDisk ? m.diskNode->title : I18N.get(builtinNode.title);
+  const char* nodeText = useDisk ? m.diskNode->text : I18N.get(builtinNode.text);
+  const int nodeScene = useDisk ? int(m.diskNode->scene) : int(builtinNode.scene);
+  const bool ending = useDisk ? (m.diskNode->ending != 0) : (builtinNode.ending != intercept::Ending::None);
+  const unsigned choiceTotal = useDisk ? m.diskNode->count : builtinNode.count;
+
   const auto chapter = fui::makeRect(b.x, b.y, b.width, 42);
   dashboard::frame(s, chapter, pixelui::kBorder);
-  dashboard::text(s, chapter, I18N.get(node.title), 1);
+  dashboard::text(s, chapter, nodeTitle, 1);
   b.y += 54;
   b.height -= 54;
-  const bool ending = node.ending != intercept::Ending::None;
   const auto art = wide ? fui::makeRect(b.x, b.y, b.width * 38 / 100, b.height)
                         : fui::makeRect(b.x, b.y, b.width, std::min(238, int(b.height) * 42 / 100));
-  scene(s, m, art, node.scene);
+  scene(s, m, art, nodeScene);
   const auto panel = wide ? fui::makeRect(art.right() + 14, b.y, b.right() - art.right() - 14, b.height)
                           : fui::makeRect(b.x, art.bottom() + 12, b.width, b.bottom() - art.bottom() - 12);
   int count = 0;
-  for (unsigned n = 0; n < node.count; ++n)
-    if (intercept::allowed(state, n)) ++count;
+  for (unsigned n = 0; n < choiceTotal; ++n) {
+    const bool ok = useDisk ? intercept::allowedDisk(state, *m.diskNode, m.meta->nodeCount, n)
+                            : intercept::allowed(state, n);
+    if (ok) ++count;
+  }
   const int rowH = wide ? 44 : 44, controls = ending ? 118 : count * (rowH + 6) + 34;
   const auto textBox = fui::makeRect(panel.x, panel.y, panel.width, panel.height - controls - 8);
   dashboard::frame(s, textBox, pixelui::kBorder);
   const auto narrative = textBox.inset({12, 12, 52, 12});
-  w.pages = pagedtext::draw(s.target(), narrative, I18N.get(node.text), 4, m.page, w.paragraph);
+  w.pages = pagedtext::draw(s.target(), narrative, nodeText, 4, m.page, w.paragraph);
   if (w.pages > 1)
     pageui::build(s, fui::makeRect(textBox.x + 8, textBox.bottom() - 44, textBox.width - 16, 36), m.page + 1, w.pages,
                   Page, -1, Page, 1);
@@ -178,8 +196,10 @@ void build(toybox::Screen& s, const Model& m, Work& w) {
   lightui::surface(s.target(), heading, dashboard::ink);
   dashboard::text(s, heading, tr(STR_REDESIGN_NEXT_MOVE), 0, fui::TextAlign::Center, true);
   int row = 0;
-  for (unsigned n = 0; n < node.count; ++n)
-    if (intercept::allowed(state, n)) {
+  for (unsigned n = 0; n < choiceTotal; ++n) {
+    const bool ok = useDisk ? intercept::allowedDisk(state, *m.diskNode, m.meta->nodeCount, n)
+                            : intercept::allowed(state, n);
+    if (ok) {
       const auto r = fui::makeRect(panel.x, heading.bottom() + 6 + row * (rowH + 6), panel.width, rowH);
       const bool selected = s.frame().buttonSelected(Choice, n, row == m.selected);
       if (selected)
@@ -192,9 +212,11 @@ void build(toybox::Screen& s, const Model& m, Work& w) {
       char num[8];
       std::snprintf(num, sizeof(num), "%d", row + 1);
       dashboard::digits(s, fui::makeRect(r.x + 10, r.y + 8, 24, r.height - 16), num, selected);
-      dashboard::text(s, fui::makeRect(r.x + 54, r.y + 4, r.width - 66, r.height - 8), I18N.get(node.choices[n].label),
-                      0, fui::TextAlign::Left, selected);
+      const char* choiceLabel = useDisk ? m.diskNode->choices[n].label : I18N.get(builtinNode.choices[n].label);
+      dashboard::text(s, fui::makeRect(r.x + 54, r.y + 4, r.width - 66, r.height - 8), choiceLabel, 0,
+                      fui::TextAlign::Left, selected);
       ++row;
     }
+  }
 }
 }  // namespace interceptui
