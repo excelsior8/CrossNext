@@ -333,7 +333,8 @@ int16_t footerHeight(toybox::Screen& screen) {
 // trail) above the count line, and above the keyboard when that is up. With
 // a query: the matches.
 void buildSearch(toybox::Screen& screen, const SearchModel& model) {
-  chrome(screen, "WIKIPEDIA");
+  chrome(screen, model.headerTitle ? model.headerTitle : "WIKIPEDIA", model.vaultLabel,
+         model.vaultLabel ? ActionNextVault : 0);
   const fui::Rect body = screen.body();
   const int16_t bottom = static_cast<int16_t>(body.bottom() - model.keyboardHeight);
   const bool empty = model.query == nullptr || model.query[0] == '\0';

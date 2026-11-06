@@ -45,6 +45,9 @@ class Pack {
   Pack(const Pack&) = delete;
   Pack& operator=(const Pack&) = delete;
 
+  void setDir(const char* d) { rootDir_ = (d && d[0]) ? d : kDir; }
+  const std::string& rootDir() const { return rootDir_; }
+
   // True when a manifest is on the card and the dictionary, the directory and
   // at least the first title index loaded. A pack with no shard present at
   // all still opens: search works and every article says "not on the card".
@@ -93,6 +96,7 @@ class Pack {
 
   bool open_ = false;
   bool warm_ = false;
+  std::string rootDir_ = kDir;
   Manifest manifest_;
   BlocksDir dir_;
   std::unique_ptr<FileSource> dirSource_;  // blocks.dir stays on the card; dir_ reads records from it

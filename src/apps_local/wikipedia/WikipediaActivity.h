@@ -25,11 +25,14 @@
 
 class WikipediaActivity final : public Activity {
  public:
-  WikipediaActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)
-      : Activity("Wikipedia", renderer, mappedInput) {}
+  explicit WikipediaActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, int initialVault = 0)
+      : Activity("Wikipedia", renderer, mappedInput), vaultIdx_(initialVault) {}
   ~WikipediaActivity() override;
 
   static std::unique_ptr<Activity> create(GfxRenderer& renderer, MappedInputManager& mappedInput);
+  static std::unique_ptr<Activity> createPhilosophy(GfxRenderer& renderer, MappedInputManager& mappedInput);
+  static std::unique_ptr<Activity> createVoyage(GfxRenderer& renderer, MappedInputManager& mappedInput);
+  static void requestJump(int vaultIdx, const char* title);
 
   void onEnter() override;
   void onExit() override;
@@ -66,6 +69,8 @@ class WikipediaActivity final : public Activity {
 
   void go(View next);
   void routeAction(int action, int value);
+  bool openCurrentVault();
+  void cycleVault();
   void showNotice(const char* headline, const char* body, const char* actionLabel, freeink::ui::ActionId action);
   // A notice that names the title it is about: "There is no article called "X"".
   void noticeAbout(const char* headline, const char* fmt, const std::string& title);
@@ -105,6 +110,7 @@ class WikipediaActivity final : public Activity {
   void leaveInstall();
 
   View view_ = View::Search;
+  int vaultIdx_ = 0;
   wikipedia::Pack pack_;
   wikipedia::State state_;
   bool packOpen_ = false;

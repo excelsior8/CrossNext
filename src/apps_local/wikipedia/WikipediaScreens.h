@@ -32,6 +32,7 @@ enum : fui::ActionId {
   ActionField = 13,     // the field itself: raises the keyboard where it is hidden
   ActionMore = 14,      // the contents list's next window
   ActionPrevious = 15,  // the article band's way back: the previous article, or the search
+  ActionNextVault = 16, // cycle between installed WKBD vaults (/wikipedia, /wiki_phil_hist, /wiki_voyage)
 };
 
 constexpr int kMaxResults = 8;
@@ -46,6 +47,8 @@ struct Row {
 };
 
 struct SearchModel {
+  const char* headerTitle = "WIKIPEDIA";
+  const char* vaultLabel = nullptr;
   const char* query = "";
   Row results[kMaxResults];
   int resultCount = 0;

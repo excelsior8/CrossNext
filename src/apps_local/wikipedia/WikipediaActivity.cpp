@@ -104,52 +104,120 @@ void removeArticleCache(const std::string& dir) {
   if (Storage.exists(dir.c_str())) Storage.rmdir(dir.c_str());
 }
 
+struct VaultDef {
+  const char* dir;
+  const char* headerTitle;
+  const char* pillLabel;
+};
+
+constexpr VaultDef kVaults[] = {
+    {"/wikipedia", "WIKIPEDIA", "1/3 VAULT"},
+    {"/wiki_phil_hist", "PHILOSOPHY", "2/3 VAULT"},
+    {"/wiki_voyage", "WIKIVOYAGE", "3/3 VAULT"},
+};
+constexpr int kVaultCount = 3;
+
+int gPendingVault = -1;
+std::string gPendingJumpTitle;
+
 }  // namespace
 
 std::unique_ptr<Activity> WikipediaActivity::create(GfxRenderer& renderer, MappedInputManager& mappedInput) {
-  return makeUniqueNoThrow<WikipediaActivity>(renderer, mappedInput);
+  const int v = gPendingVault >= 0 ? gPendingVault : 0;
+  gPendingVault = -1;
+  return makeUniqueNoThrow<WikipediaActivity>(renderer, mappedInput, v);
+}
+
+std::unique_ptr<Activity> WikipediaActivity::createPhilosophy(GfxRenderer& renderer, MappedInputManager& mappedInput) {
+  gPendingVault = -1;
+  return makeUniqueNoThrow<WikipediaActivity>(renderer, mappedInput, 1);
+}
+
+std::unique_ptr<Activity> WikipediaActivity::createVoyage(GfxRenderer& renderer, MappedInputManager& mappedInput) {
+  gPendingVault = -1;
+  return makeUniqueNoThrow<WikipediaActivity>(renderer, mappedInput, 2);
+}
+
+void WikipediaActivity::requestJump(int vaultIdx, const char* title) {
+  gPendingVault = (vaultIdx >= 0 && vaultIdx < kVaultCount) ? vaultIdx : 0;
+  gPendingJumpTitle = title ? title : "";
 }
 
 WikipediaActivity::~WikipediaActivity() = default;
 
+bool WikipediaActivity::openCurrentVault() {
+  if (packOpen_) {
+    saveState();
+    pack_.close();
+    packOpen_ = false;
+  }
+  closeArticle();
+  state_ = wikipedia::State{};
+  footer_.clear();
+  partsLine_.clear();
+  query_.clear();
+  results_.clear();
+  history_.clear();
+
+  if (vaultIdx_ < 0 || vaultIdx_ >= kVaultCount) vaultIdx_ = 0;
+  pack_.setDir(kVaults[vaultIdx_].dir);
+  packOpen_ = pack_.open();
+  if (!packOpen_) return false;
+
+  pack_.loadState(state_);
+  char count[16];
+  withCommas(count, sizeof(count), pack_.manifest().articles);
+  char when[32];
+  snapshotWords(when, sizeof(when), pack_.manifest().snapshot);
+  footer_ = std::string(count) + " ARTICLES, " + when;
+  if (pack_.shardsPresent() < pack_.shardsTotal()) {
+    char line[64];
+    snprintf(line, sizeof(line), "%d OF %d PARTS ON THE CARD", pack_.shardsPresent(), pack_.shardsTotal());
+    partsLine_ = line;
+  }
+  ensureDir("/.crosspoint");
+  ensureDir(kCacheRoot);
+  return true;
+}
+
+void WikipediaActivity::cycleVault() {
+  for (int step = 1; step <= kVaultCount; ++step) {
+    const int candidate = (vaultIdx_ + step) % kVaultCount;
+    const std::string m = std::string(kVaults[candidate].dir) + "/manifest.json";
+    if (Storage.exists(m.c_str())) {
+      vaultIdx_ = candidate;
+      if (openCurrentVault()) {
+        go(View::Search);
+        return;
+      }
+    }
+  }
+}
+
 void WikipediaActivity::onEnter() {
   Activity::onEnter();
-  // The shelf registers the toybox faces on the way in, but the restart after
-  // a storage handoff (and a wake) lands here directly: on the panel every
-  // Jersey string on the home was missing, the serif prose intact.
   toybox::ensureFonts(renderer);
   keyboardShown_ = false;
-  packOpen_ = pack_.open();
+  if (!openCurrentVault() && vaultIdx_ != 0) {
+    vaultIdx_ = 0;
+    openCurrentVault();
+  }
   if (packOpen_) {
-    pack_.loadState(state_);
-    char count[16];
-    withCommas(count, sizeof(count), pack_.manifest().articles);
-    char when[32];
-    snapshotWords(when, sizeof(when), pack_.manifest().snapshot);
-    footer_ = std::string(count) + " ARTICLES, " + when;
-    if (pack_.shardsPresent() < pack_.shardsTotal()) {
-      char line[64];
-      snprintf(line, sizeof(line), "%d OF %d PARTS ON THE CARD", pack_.shardsPresent(), pack_.shardsTotal());
-      partsLine_ = line;
-    }
-    // A cache laid out from another pack must not answer for this one: the
-    // build too, since one snapshot was built three times in one evening and
-    // the article behind a locator moved each time.
-    const std::string marker = pack_.manifest().pack + " " + pack_.manifest().snapshot + " " + pack_.manifest().built;
-    if (readSmallFile(kCacheMarker) != marker) {
-      const std::string lru = readSmallFile(kLruPath);
-      size_t pos = 0;
-      while (pos < lru.size()) {
-        const size_t nl = lru.find('\n', pos);
-        const std::string id = lru.substr(pos, nl == std::string::npos ? std::string::npos : nl - pos);
-        if (!id.empty()) removeArticleCache(std::string(kCacheRoot) + "/" + id);
-        if (nl == std::string::npos) break;
-        pos = nl + 1;
+    if (!gPendingJumpTitle.empty()) {
+      const std::string target = gPendingJumpTitle;
+      gPendingJumpTitle.clear();
+      wikipedia::IndexEntry entry;
+      if (!pack_.find(target, entry) && vaultIdx_ == 0) {
+        // Fallback to Philosophy/History vault if not found in main vault
+        vaultIdx_ = 1;
+        if (!openCurrentVault() || !pack_.find(target, entry)) {
+          vaultIdx_ = 0;
+          openCurrentVault();
+        }
       }
-      ensureDir("/.crosspoint");
-      ensureDir(kCacheRoot);
-      writeFile(kLruPath, "");
-      writeFile(kCacheMarker, marker);
+      go(View::Search);
+      openTitle(target);
+      return;
     }
     go(View::Search);
   } else {
@@ -359,7 +427,8 @@ bool WikipediaActivity::stageArticle(const uint32_t locator) {
   // Everything from here is proportional to the article: the staging write,
   // then the parse and layout in render(). That is what the cue hides, and
   // only when the last open says there is enough of it to hide.
-  cacheDir_ = std::string(kCacheRoot) + "/" + std::to_string(locator);
+  const std::string id = std::to_string(vaultIdx_) + "_" + std::to_string(locator);
+  cacheDir_ = std::string(kCacheRoot) + "/" + id;
   if (!ensureDir("/.crosspoint") || !ensureDir(kCacheRoot) || !ensureDir(cacheDir_.c_str())) return false;
   const std::string html = cacheDir_ + "/article.html";
   // The band carries the title, so the h1 inside the page would say it twice;
@@ -387,7 +456,6 @@ bool WikipediaActivity::stageArticle(const uint32_t locator) {
   }
   // Most recently used first; the tail is pruned.
   std::string lru = readSmallFile(kLruPath);
-  const std::string id = std::to_string(locator);
   std::string rebuilt = id + "\n";
   int kept = 1;
   size_t pos = 0;
@@ -423,7 +491,8 @@ bool WikipediaActivity::openLocator(const uint32_t locator, const int page, cons
   // is not how big the article is, it is whether this device has ever laid it
   // out: the cache file is the answer, and it is right on the FIRST open,
   // which is the one a prediction can never be.
-  const std::string staged = std::string(kCacheRoot) + "/" + std::to_string(locator) + "/article.html";
+  const std::string staged =
+      std::string(kCacheRoot) + "/" + std::to_string(vaultIdx_) + "_" + std::to_string(locator) + "/article.html";
   const bool cached = Storage.exists(staged.c_str());
   if (!cached) paintOpeningCue(title);
   const uint32_t stageStart = millis();
@@ -801,6 +870,9 @@ void WikipediaActivity::routeAction(const int action, const int value) {
         go(View::Search);
       }
       return;
+    case wikiui::ActionNextVault:
+      cycleVault();
+      return;
     default:
       return;
   }
@@ -1072,6 +1144,8 @@ void WikipediaActivity::render(RenderLock&&) {
   switch (view_) {
     case View::Search: {
       wikiui::SearchModel model;
+      model.headerTitle = kVaults[vaultIdx_].headerTitle;
+      model.vaultLabel = kVaults[vaultIdx_].pillLabel;
       model.query = query_.c_str();
       model.resultCount = static_cast<int>(std::min<size_t>(results_.size(), wikiui::kMaxResults));
       for (int i = 0; i < model.resultCount; ++i) {
