@@ -15,21 +15,31 @@
 #include "ShelfHidden.h"
 #include "ShelfState.h"
 #include "battleship/BattleshipActivity.h"
+#include "bilingual/BilingualActivity.h"
+#include "calculator/CalculatorActivity.h"
 #include "carnivoro/CarnivoroActivity.h"
 #include "carnivoro/CarnivoroIcon.h"
 #include "checkers/DraughtsActivity.h"
 #include "chess/ChessActivity.h"
+#include "chronoatlas/ChronoAtlasActivity.h"
 #include "components/icons/listIcons.h"
 #include "connectfour/ConnectFourActivity.h"
+#include "connections/ConnectionsActivity.h"
 #include "flashcards/FlashcardsActivity.h"
 #include "forehead/ForeheadActivity.h"
+#include "frontiera/FrontieraActivity.h"
 #include "game2048/Game2048Activity.h"
 #include "go/GoActivity.h"
 #include "habits/HabitsActivity.h"
 #include "hackernews/HackerNewsActivity.h"
 #include "hearts/HeartsActivity.h"
+#include "insider/InsiderActivity.h"
 #include "instapaper/InstapaperActivity.h"
 #include "intercept/InterceptActivity.h"
+#include "knucklebones/KnucklebonesActivity.h"
+#include "logos/LogosActivity.h"
+#include "manifest/ManifestActivity.h"
+#include "microtactics/MicroTacticsActivity.h"
 #include "minesweeper/MinesweeperActivity.h"
 #include "murdle/MurdleActivity.h"
 #include "notes/NotesActivity.h"
@@ -41,18 +51,23 @@
 #include "pomodoro/PomodoroIcon.h"
 #include "quest/ReadingQuestActivity.h"
 #include "quotes/QuotesActivity.h"
+#include "seasalt/SeaSaltActivity.h"
 #include "solitaire/SolitaireActivity.h"
 #include "study/StudyActivity.h"
 #include "sudoku/SudokuActivity.h"
 #include "tools/ToolsActivity.h"
 #include "toybattle/ToyBattleActivity.h"
+#include "trivia/TriviaActivity.h"
 #include "ui/ExtraIcons.h"
 #include "ui/ToyboxIcons.h"
+#include "underhand/UnderhandActivity.h"
 #include "wallpapers/WallpapersActivity.h"
+#include "wavelength/WavelengthActivity.h"
 #include "wikipedia/WikipediaActivity.h"
 #include "wordle/WordleActivity.h"
 #include "words/WordsActivity.h"
 #include "xkcd/XkcdActivity.h"
+#include "yahtzee/YahtzeeActivity.h"
 
 namespace {
 
@@ -66,8 +81,8 @@ constexpr shelf::Item kGames[] = {
     {"MINESWEEPER", &icon_minesweeper_32, &MinesweeperActivity::create},
     {"PICROSS", &icon_picross_32, &PicrossActivity::create},
     {"WORDLE", &icon_wordle_32, &WordleActivity::create},
-    {"2048", &icon_connections_32, &Game2048Activity::create},
-    {"THE INTERCEPT", &icon_underhand_32, &InterceptActivity::create},
+    {"2048", &extra_dashboard_cards_32, &Game2048Activity::create},
+    {"THE INTERCEPT", &extra_reading_book_32, &InterceptActivity::create},
     {"BATTLESHIP", &icon_battleship_32, &BattleshipActivity::create},
     {"SOLITAIRE", &icon_solitaire_32, &SolitaireActivity::create},
     {"HEARTS", &icon_hearts_32, &HeartsActivity::create},
@@ -76,6 +91,19 @@ constexpr shelf::Item kGames[] = {
     {"CONNECT FOUR", &icon_connectfour_32, &ConnectFourActivity::create},
     {"SUDOKU", &icon_sudoku_32, &SudokuActivity::create},
     {"OTHELLO", &extra_circle_dot_32, &PocketGamesActivity::createOthello},
+    {"UNDERHAND", &icon_underhand_32, &UnderhandActivity::create},
+    {"KNUCKLEBONES", &icon_knucklebones_32, &KnucklebonesActivity::create},
+    {"CONNECTIONS", &icon_connections_32, &ConnectionsActivity::create},
+    {"SEA SALT", &icon_seasalt_32, &SeaSaltActivity::create},
+    {"TOY BATTLE", &icon_toybattle_32, &ToyBattleActivity::create},
+    {"YAHTZEE", &icon_yahtzee_32, &YahtzeeActivity::create},
+    {"TRIVIA", &icon_trivia_32, &TriviaActivity::create},
+    {"WAVELENGTH", &icon_wavelength_32, &WavelengthActivity::create},
+    {"INSIDER", &icon_insider_32, &InsiderActivity::create},
+    {"FOREHEAD", &icon_forehead_32, &ForeheadActivity::create},
+    {"FRONTIERA", &extra_lock_32, &FrontieraActivity::create},
+    {"THE MANIFEST", &icon_murdle_suspects_32, &ManifestActivity::create},
+    {"MICRO-TACTICS", &extra_trophy_32, &MicroTacticsActivity::create},
 };
 constexpr shelf::Item kApps[] = {
     {"READING QUEST", &icon_dungeon_32, &ReadingQuestActivity::create},
@@ -88,9 +116,20 @@ constexpr shelf::Item kApps[] = {
     {"QUOTES", &icon_library_32, &QuotesActivity::create},
     {"FLASHCARDS", &extra_cards_32, &FlashcardsActivity::create},
     {"WORDS", &icon_library_32, &WordsActivity::create},
+    {"STUDY", &icon_study_32, &StudyActivity::create},
+    {"WIKIPEDIA", &icon_wikipedia_32, &WikipediaActivity::create},
+    {"PHILOSOPHY", &extra_reading_flame_32, &WikipediaActivity::createPhilosophy},
+    {"LOGOS", &extra_git_merge_32, &LogosActivity::create},
+    {"WIKIVOYAGE", &extra_route_32, &WikipediaActivity::createVoyage},
+    {"CHRONOATLAS", &icon_murdle_places_32, &ChronoAtlasActivity::create},
+    {"BILINGUAL", &extra_reading_book_32, &BilingualActivity::create},
+    {"XKCD", &icon_xkcd_32, &XkcdActivity::create},
+    {"HACKER NEWS", &icon_hackernews_32, &HackerNewsActivity::create},
+    {"INSTAPAPER", &icon_instapaper_32, &InstapaperActivity::create},
+    {"CALCULATOR", &icon_calculator_32, &CalculatorActivity::create},
     {"CALENDAR", &extra_calendar_32, &ToolsActivity::calendar},
     {"CLOCK", &extra_clock_32, &ToolsActivity::clock},
-    {"COUNTER", &icon_calculator_32, &ToolsActivity::counter},
+    {"COUNTER", &extra_dashboard_add_32, &ToolsActivity::counter},
 };
 
 // The two rows Home grows, in reading order. Titles are Title Case because
