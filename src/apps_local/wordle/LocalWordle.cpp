@@ -31,20 +31,20 @@ struct Bank {
 Bank bankFor(int letters, int language) {
   switch (letters) {
     case 4:
-      return language ? Bank{&data::eswords4[0][0], int(sizeof(data::eswords4) / 5), &data::esguesses4[0][0],
-                             int(sizeof(data::esguesses4) / 5)}
-                      : Bank{&data::words4[0][0], int(sizeof(data::words4) / 5), &data::guesses4[0][0],
-                             int(sizeof(data::guesses4) / 5)};
+      return language ? Bank{&data::eswords4[0][0], int(sizeof(data::eswords4) / 5), data::esguesses4,
+                             int((sizeof(data::esguesses4) - 1) / 4)}
+                      : Bank{&data::words4[0][0], int(sizeof(data::words4) / 5), data::guesses4,
+                             int((sizeof(data::guesses4) - 1) / 4)};
     case 5:
-      return language ? Bank{&data::eswords5[0][0], int(sizeof(data::eswords5) / 6), &data::esguesses5[0][0],
-                             int(sizeof(data::esguesses5) / 6)}
-                      : Bank{&data::words5[0][0], int(sizeof(data::words5) / 6), &data::guesses5[0][0],
-                             int(sizeof(data::guesses5) / 6)};
+      return language ? Bank{&data::eswords5[0][0], int(sizeof(data::eswords5) / 6), data::esguesses5,
+                             int((sizeof(data::esguesses5) - 1) / 5)}
+                      : Bank{&data::words5[0][0], int(sizeof(data::words5) / 6), data::guesses5,
+                             int((sizeof(data::guesses5) - 1) / 5)};
     case 6:
-      return language ? Bank{&data::eswords6[0][0], int(sizeof(data::eswords6) / 7), &data::esguesses6[0][0],
-                             int(sizeof(data::esguesses6) / 7)}
-                      : Bank{&data::words6[0][0], int(sizeof(data::words6) / 7), &data::guesses6[0][0],
-                             int(sizeof(data::guesses6) / 7)};
+      return language ? Bank{&data::eswords6[0][0], int(sizeof(data::eswords6) / 7), data::esguesses6,
+                             int((sizeof(data::esguesses6) - 1) / 6)}
+                      : Bank{&data::words6[0][0], int(sizeof(data::words6) / 7), data::guesses6,
+                             int((sizeof(data::guesses6) - 1) / 6)};
     default:
       return {nullptr, 0, nullptr, 0};
   }
@@ -58,9 +58,17 @@ const char* wordAt(int letters, int index, int language) {
 bool contains(int letters, const char* word, int language) {
   if (!word) return false;
   const auto bank = bankFor(letters, language);
+  for (int low = 0, high = bank.count; low < high;) {
+    const int middle = (low + high) / 2, result = std::memcmp(bank.answers + middle * (letters + 1), word, letters);
+    if (!result) return true;
+    if (result < 0)
+      low = middle + 1;
+    else
+      high = middle;
+  }
   int low = 0, high = bank.accepted;
   while (low < high) {
-    const int middle = (low + high) / 2, result = std::memcmp(bank.guesses + middle * (letters + 1), word, letters);
+    const int middle = (low + high) / 2, result = std::memcmp(bank.guesses + middle * letters, word, letters);
     if (!result) return true;
     if (result < 0)
       low = middle + 1;

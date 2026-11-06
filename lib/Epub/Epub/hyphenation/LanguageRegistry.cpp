@@ -5,18 +5,16 @@
 
 #include "HyphenationCommon.h"
 #include "generated/hyph-en.trie.h"
-#include "generated/hyph-es.trie.h"
 
 namespace {
 
 // English hyphenation patterns (3/3 minimum prefix/suffix length)
 LanguageHyphenator englishHyphenator(en_patterns, isLatinLetter, toLowerLatin, 3, 3);
-LanguageHyphenator spanishHyphenator(es_patterns, isLatinLetter, toLowerLatin);
 
-using EntryArray = std::array<LanguageEntry, 2>;
+using EntryArray = std::array<LanguageEntry, 1>;
 
 const EntryArray& entries() {
-  static const EntryArray kEntries = {{{"english", "en", &englishHyphenator}, {"spanish", "es", &spanishHyphenator}}};
+  static const EntryArray kEntries = {{{"english", "en", &englishHyphenator}}};
   return kEntries;
 }
 

@@ -14,7 +14,6 @@ constexpr size_t kProgressBytes = 152;
 struct Puzzle {
   uint8_t board[32];
   uint16_t moves[5];
-  char id[6];
   uint16_t rating;
   uint8_t castling;
   int8_t epSquare;
